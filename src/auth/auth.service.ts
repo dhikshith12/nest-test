@@ -5,10 +5,17 @@ import { AuthDto } from './dto';
 
 import * as argon from 'argon2';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+        private prisma: PrismaService, 
+        private jwt: JwtService,
+        private config: ConfigService
+    ) {}
+
   async signup(dto: AuthDto) {
     try {
       // generate the password hash
@@ -20,9 +27,8 @@ export class AuthService {
           passHash: hash,
         },
       });
-      delete user.passHash;
       // return the saved user
-      return user;
+      return this.signToken(user.id,user.email);
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
@@ -35,39 +41,50 @@ export class AuthService {
   async signin(dto: AuthDto) {
     // find the user by email
     let user = await this.prisma.user.findUnique({
-        where: {
-            email: dto.email,
-        },
+      where: {
+        email: dto.email,
+      },
     });
 
     // if user does not exist throw exception
-    if(!user) throw new ForbiddenException(
-        'Account does not exist'
-    )
-    
+    if (!user) throw new ForbiddenException('Account does not exist');
+
     // see if the user is already logged in
-    if(user.loggedIn){
-        throw new ForbiddenException(
-            'Active session running...'
-        )
+    if (user.loggedIn) {
+      throw new ForbiddenException('Active session running...');
     }
     // compare password
     // if password incorrect throe exception
-    const pwMatches = await argon.verify(user.passHash, dto.password)
-    if(!pwMatches){
-        throw new ForbiddenException(
-            'Incorrect Password'
-        )
+    const pwMatches = await argon.verify(user.passHash, dto.password);
+    if (!pwMatches) {
+      throw new ForbiddenException('Incorrect Password');
     }
     user = await this.prisma.user.update({
-        where:{
-            id: user.id
-        },
-        data:{
-            loggedIn: true
-        }
+      where: {
+        id: user.id,
+      },
+      data: {
+        loggedIn: true,
+      },
+    });
+    return this.signToken(user.id,user.email);
+  }
+
+  async signToken(
+    userId: number,
+    email: string,
+  ): Promise<{access_token: string}> {
+    const data = {
+        sub: userId,
+        email
+    }
+
+    const token = await this.jwt.signAsync(data,{
+        expiresIn: '10d',
+        secret: this.config.get('JWT_SECRET'),
     })
-    delete user.passHash
-    return user;
+    return {
+        access_token: token,
+    }
   }
 }
