@@ -17,6 +17,7 @@ model User{
 
   email String @unique
   passHash String
+  loggedIn Boolean @default(false)
 
   firstName String?
   lastName String?

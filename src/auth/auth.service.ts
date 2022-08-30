@@ -34,7 +34,7 @@ export class AuthService {
   }
   async signin(dto: AuthDto) {
     // find the user by email
-    const user = await this.prisma.user.findUnique({
+    let user = await this.prisma.user.findUnique({
         where: {
             email: dto.email,
         },
@@ -42,9 +42,15 @@ export class AuthService {
 
     // if user does not exist throw exception
     if(!user) throw new ForbiddenException(
-        'Incorrect Email'
+        'Account does not exist'
     )
-
+    
+    // see if the user is already logged in
+    if(user.loggedIn){
+        throw new ForbiddenException(
+            'Active session running...'
+        )
+    }
     // compare password
     // if password incorrect throe exception
     const pwMatches = await argon.verify(user.passHash, dto.password)
@@ -53,6 +59,14 @@ export class AuthService {
             'Incorrect Password'
         )
     }
+    user = await this.prisma.user.update({
+        where:{
+            id: user.id
+        },
+        data:{
+            loggedIn: true
+        }
+    })
     delete user.passHash
     return user;
   }
