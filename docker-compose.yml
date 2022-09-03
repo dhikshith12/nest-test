@@ -21,4 +21,4 @@ services:
       networks:
         - beanstalks
 networks:
-  beanstalks: 
+  beanstalks:

@@ -15,7 +15,6 @@ export class AuthController{
         });
         return this.authService.signup(dto);
     }
-
     // POST /auth/signin
     @HttpCode(HttpStatus.OK)
     @Post('signin')
